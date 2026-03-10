@@ -7,24 +7,31 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f8f9fa; padding: 20px; font-family: sans-serif; }
-        .card { border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .score-input { width: 70px; text-align: center; border: 1px solid #ddd; }
+        .card { border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; border: none; }
+        
+        /* 隱藏數字輸入框箭頭 */
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .u-cell { background-color: #eef7ff; font-weight: bold; }
-        .loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .score-input { width: 75px; text-align: center; border: 1px solid #dee2e6; border-radius: 4px; padding: 4px; }
+        .score-input:focus { border-color: #0d6efd; outline: none; box-shadow: 0 0 0 0.2rem rgba(13,110,253,.15); }
+        
+        .u-cell { background-color: #f0f7ff; font-weight: bold; color: #0d6efd; }
+        .y-cell { font-weight: bold; color: #198754; font-size: 1.1rem; }
+        .loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.85); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
 <body>
 
 <div class="loading" id="loading">
-    <div class="spinner-border text-primary mb-2"></div>
+    <div class="spinner-border text-primary mb-3"></div>
     <h5 id="loadMsg">處理中...</h5>
 </div>
 
 <div class="container-fluid">
     <!-- 表頭編輯區 -->
-    <div class="card p-3">
-        <div class="row g-2 align-items-center">
+    <div class="card p-4">
+        <div class="row g-3 align-items-center">
             <div class="col-md-3">名稱: <input type="text" id="h-name" class="form-control form-control-sm h-input"></div>
             <div class="col-md-3">文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
             <div class="col-md-2">組別: 
@@ -37,27 +44,36 @@
                     <option>字音字形</option><option>朗讀</option><option>作文</option><option>演說</option><option>寫字</option>
                 </select>
             </div>
-            <div class="col-md-1">人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input" value="3"></div>
+            <div class="col-md-1">人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input"></div>
             <div class="col-md-1">承辦: <input type="text" id="h-school" class="form-control form-control-sm h-input"></div>
         </div>
-        <div class="mt-2 text-end">
-            <button id="btn-edit" class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯</button>
-            <button id="btn-write" class="btn btn-sm btn-primary" onclick="writeHeader()">寫入並鎖定</button>
-            <button class="btn btn-sm btn-danger" onclick="archiveDB()">寫入資料庫</button>
+        <div class="mt-3 text-end">
+            <button id="btn-edit" class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯設定</button>
+            <button id="btn-write" class="btn btn-sm btn-primary px-3" onclick="writeHeader()">確認鎖定</button>
+            <button class="btn btn-sm btn-danger px-3" onclick="archiveDB()">封存至資料庫</button>
         </div>
     </div>
 
     <!-- 成績編輯區 -->
-    <div class="card p-3">
-        <div class="d-flex justify-content-between mb-2">
-            <h5 id="displayInfo">競賽名單</h5>
-            <button class="btn btn-sm btn-success" onclick="saveAll()">全部儲存並重算</button>
+    <div class="card p-4">
+        <div class="d-flex justify-content-between mb-3 align-items-center">
+            <h5 class="m-0">成績登錄表</h5>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-primary" onclick="loadData()">刷新數據</button>
+                <button class="btn btn-sm btn-success" onclick="saveAll()">全部儲存</button>
+            </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-sm table-bordered text-center align-middle">
+            <table class="table table-bordered text-center align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th>序</th><th>評審1</th><th>評審2</th><th>評審3</th><th class="u-cell">均一分</th><th id="thV">V</th><th id="thW">W</th><th>扣分</th><th>總成績</th><th>名次</th><th>操作</th>
+                        <th style="width: 60px;">序</th>
+                        <th>評審1</th><th>評審2</th><th>評審3</th>
+                        <th class="u-cell">均一分</th>
+                        <th id="thV">V</th><th id="thW">W</th>
+                        <th>扣分</th><th>總成績</th>
+                        <th style="width: 60px;">名次</th>
+                        <th style="width: 80px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="scoreBody"></tbody>
@@ -67,52 +83,55 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycby3q2yneaaiWIVXvyyW6ueGT5Z6UTUWLQ87GSSuSBEFqDfUCUy8Q7Y4H1l6tWkBsmD8/exec"; // ⚠️替換為你的網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycby3q2yneaaiWIVXvyyW6ueGT5Z6UTUWLQ87GSSuSBEFqDfUCUy8Q7Y4H1l6tWkBsmD8/exec"; // ⚠️替換為您的網址
     let rowList = [];
 
     async function loadData() {
-        showLoading(true, "讀取中...");
-        const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "getData" }) });
-        const res = await resp.json();
-        
-        // 填充表頭
-        document.getElementById("h-name").value = res.header.name || "";
-        document.getElementById("h-doc").value = res.header.doc || "";
-        document.getElementById("h-group").value = res.header.group || "國小組";
-        document.getElementById("h-item").value = res.header.item || "演說";
-        document.getElementById("h-judges").value = res.header.judges || 3;
-        document.getElementById("h-school").value = res.header.school || "";
-        
-        toggleHeader(res.header.name ? true : false);
-        
-        // 標題切換
-        const v = document.getElementById("thV"), w = document.getElementById("thW");
-        if (res.project === "寫字") { v.innerText = "錯漏字"; w.innerText = "未寫完"; }
-        else if (res.project === "演說") { v.innerText = "-"; w.innerText = "時間"; }
+        showLoading(true, "連線雲端中...");
+        try {
+            const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "getData" }) });
+            const res = await resp.json();
+            
+            document.getElementById("h-name").value = res.header.name || "";
+            document.getElementById("h-doc").value = res.header.doc || "";
+            document.getElementById("h-group").value = res.header.group || "國小組";
+            document.getElementById("h-item").value = res.header.item || "演說";
+            document.getElementById("h-judges").value = res.header.judges || 3;
+            document.getElementById("h-school").value = res.header.school || "";
+            
+            toggleHeader(res.header.name ? true : false);
+            
+            const v = document.getElementById("thV"), w = document.getElementById("thW");
+            if (res.project === "寫字") { v.innerText = "錯漏字"; w.innerText = "未寫完"; }
+            else if (res.project === "演說") { v.innerText = "-"; w.innerText = "時間"; }
 
-        rowList = [];
-        const body = document.getElementById("scoreBody");
-        body.innerHTML = "";
-        res.rows.forEach((row, i) => {
-            if (!row[0]) return;
-            const rIdx = i + 3;
-            rowList.push(rIdx);
-            body.innerHTML += `
-                <tr>
-                    <td>${row[0]}</td>
-                    <td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}"></td>
-                    <td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}"></td>
-                    <td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}"></td>
-                    <td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td>
-                    <td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}"></td>
-                    <td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}"></td>
-                    <td class="text-danger fw-bold">${row[23]}</td>
-                    <td class="fw-bold text-success">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td>
-                    <td>${row[31] || ""}</td>
-                    <td><button class="btn btn-dark btn-sm" onclick="saveSingle(${rIdx})">儲存</button></td>
-                </tr>
-            `;
-        });
+            rowList = [];
+            const body = document.getElementById("scoreBody");
+            body.innerHTML = "";
+            res.rows.forEach((row, i) => {
+                if (!row[0]) return;
+                const rIdx = i + 3;
+                rowList.push(rIdx);
+                const uVal = row[20] ? parseFloat(row[20]).toFixed(2) : "0.00";
+                const yVal = row[24] ? parseFloat(row[24]).toFixed(2) : "0.00";
+                
+                body.innerHTML += `
+                    <tr>
+                        <td>${row[0]}</td>
+                        <td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}"></td>
+                        <td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}"></td>
+                        <td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}"></td>
+                        <td class="u-cell">${uVal}</td>
+                        <td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}"></td>
+                        <td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}"></td>
+                        <td class="text-danger fw-bold">${row[23]}</td>
+                        <td class="y-cell">${yVal}</td>
+                        <td class="fs-5">${row[31] || ""}</td>
+                        <td><button class="btn btn-dark btn-sm" onclick="saveSingle(${rIdx})">儲存</button></td>
+                    </tr>
+                `;
+            });
+        } catch (e) { alert("讀取失敗，請確認 GAS 網址。"); }
         showLoading(false);
     }
 
@@ -122,7 +141,7 @@
     }
 
     async function writeHeader() {
-        showLoading(true, "寫入設定並更新名單...");
+        showLoading(true, "寫入設定...");
         const data = {
             name: document.getElementById("h-name").value,
             doc: document.getElementById("h-doc").value,
@@ -136,7 +155,21 @@
     }
 
     async function saveSingle(rIdx) {
-        const item = {
+        const item = collectRow(rIdx);
+        showLoading(true, "計算單筆成績...");
+        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "updateBatch", dataList: [item] }) });
+        setTimeout(loadData, 1500);
+    }
+
+    async function saveAll() {
+        showLoading(true, "計算全體成績與排名...");
+        const list = rowList.map(r => collectRow(r));
+        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "updateBatch", dataList: list }) });
+        setTimeout(loadData, 2000);
+    }
+
+    function collectRow(rIdx) {
+        return {
             row: rIdx,
             e: document.getElementById(`e-${rIdx}`).value,
             i: document.getElementById(`i-${rIdx}`).value,
@@ -144,28 +177,11 @@
             v: document.getElementById(`v-${rIdx}`).value,
             w: document.getElementById(`w-${rIdx}`).value
         };
-        showLoading(true, "計算中...");
-        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "updateBatch", dataList: [item] }) });
-        setTimeout(loadData, 1200);
-    }
-
-    async function saveAll() {
-        showLoading(true, "批次計算中...");
-        const list = rowList.map(r => ({
-            row: r,
-            e: document.getElementById(`e-${r}`).value,
-            i: document.getElementById(`i-${r}`).value,
-            m: document.getElementById(`m-${r}`).value,
-            v: document.getElementById(`v-${r}`).value,
-            w: document.getElementById(`w-${r}`).value
-        }));
-        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "updateBatch", dataList: list }) });
-        setTimeout(loadData, 1500);
     }
 
     async function archiveDB() {
-        if (!confirm("確定要將資料寫入資料庫並清空目前的成績嗎？")) return;
-        showLoading(true, "歸檔中...");
+        if (!confirm("確定要將資料寫入資料庫(包含名次)並清空目前名單嗎？")) return;
+        showLoading(true, "封存歸檔中...");
         await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "writeToDatabase" }) });
         loadData();
     }
