@@ -6,6 +6,173 @@
     <title>語文競賽成績編輯系統</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        body { background-color: #f4f7f6; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
+        .table-container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .score-input { width: 80px; text-align: center; border: 1px solid #ced4da; }
+        .loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .project-info { color: #666; font-size: 0.9rem; }
+        .table thead th { background-color: #495057; color: white; border: none; vertical-align: middle; }
+        .u-column { background-color: #f8f9fa; font-weight: bold; color: #0d6efd; }
+    </style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+    <div class="spinner-border text-primary mb-2"></div>
+    <span>正在計算全體成績與名次...</span>
+</div>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-end mb-3">
+        <div>
+            <h2 class="mb-1">語文競賽成績編輯系統</h2>
+            <div id="projectDisplay" class="project-info">正在連線至 Google 試算表...</div>
+        </div>
+        <button class="btn btn-outline-primary" onclick="loadData()">刷新資料庫</button>
+    </div>
+
+    <div class="table-container">
+        <table class="table table-bordered align-middle text-center">
+            <thead>
+                <tr id="headerRow">
+                    <th style="width: 50px;">序</th>
+                    <th>評審1</th>
+                    <th>評審2</th>
+                    <th>評審3</th>
+                    <th>均一分數(U)</th>
+                    <th id="labelV">V欄位</th>
+                    <th id="labelW">W欄位</th>
+                    <th>扣分(X)</th>
+                    <th>總成績(Y)</th>
+                    <th style="width: 60px;">名次</th>
+                    <th style="width: 80px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="scoreTableBody">
+                <!-- 資料由 JavaScript 動態產生 -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // ⚠️ 請替換為您的 Google Apps Script 部署網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycby3q2yneaaiWIVXvyyW6ueGT5Z6UTUWLQ87GSSuSBEFqDfUCUy8Q7Y4H1l6tWkBsmD8/exec";
+
+    let currentProject = "";
+
+    async function loadData() {
+        showLoading(true);
+        try {
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: "getData" })
+            });
+            const data = await response.json();
+            
+            currentProject = data.project; // 從 G1 取得項目名稱
+            document.getElementById("projectDisplay").innerText = `目前項目：${data.project} | 組別：${data.group} | 評審人數：${data.judges}`;
+            
+            updateHeaders(data.project);
+            renderTable(data.rows);
+        } catch (e) {
+            alert("讀取失敗，請檢查網路或 GAS 網址是否正確。");
+        }
+        showLoading(false);
+    }
+
+    // 更新 V 與 W 欄位的標題文字
+    function updateHeaders(project) {
+        const labelV = document.getElementById("labelV");
+        const labelW = document.getElementById("labelW");
+
+        if (project === "寫字") {
+            labelV.innerText = "錯漏字";
+            labelW.innerText = "未寫完";
+        } else if (project === "演說") {
+            labelV.innerText = "";
+            labelW.innerText = "時間";
+        } else {
+            labelV.innerText = "";
+            labelW.innerText = "";
+        }
+    }
+
+    function renderTable(rows) {
+        const body = document.getElementById("scoreTableBody");
+        body.innerHTML = "";
+        
+        rows.forEach((row, index) => {
+            if (row[0] === "") return; // 跳過空列
+            
+            const rowNum = index + 3; // 試算表實際行號
+            const tr = document.createElement("tr");
+            
+            // 欄位對照: row[0]=A, row[4]=E, row[8]=I, row[12]=M, row[20]=U, row[21]=V, row[22]=W, row[23]=X, row[24]=Y, row[31]=AF
+            tr.innerHTML = `
+                <td class="text-secondary">${row[0]}</td>
+                <td><input type="number" step="0.1" class="form-control score-input mx-auto" id="e-${rowNum}" value="${row[4]}"></td>
+                <td><input type="number" step="0.1" class="form-control score-input mx-auto" id="i-${rowNum}" value="${row[8]}"></td>
+                <td><input type="number" step="0.1" class="form-control score-input mx-auto" id="m-${rowNum}" value="${row[12]}"></td>
+                <td class="u-column">${row[20] ? parseFloat(row[20]).toFixed(2) : "0.00"}</td>
+                <td><input type="number" class="form-control score-input mx-auto" id="v-${rowNum}" value="${row[21]}"></td>
+                <td><input type="number" step="0.01" class="form-control score-input mx-auto" id="w-${rowNum}" value="${row[22]}"></td>
+                <td class="text-danger fw-bold">${row[23] || 0}</td>
+                <td class="fw-bold text-primary" style="font-size: 1.1rem;">${row[24] ? parseFloat(row[24]).toFixed(2) : "0.00"}</td>
+                <td class="fs-5">${row[31] || ""}</td>
+                <td><button class="btn btn-sm btn-dark w-100" onclick="saveRow(${rowNum})">儲存</button></td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    async function saveRow(rowNum) {
+        showLoading(true);
+        const payload = {
+            action: "updateScore",
+            data: {
+                row: rowNum,
+                e: document.getElementById(`e-${rowNum}`).value,
+                i: document.getElementById(`i-${rowNum}`).value,
+                m: document.getElementById(`m-${rowNum}`).value,
+                v: document.getElementById(`v-${rowNum}`).value,
+                w: document.getElementById(`w-${rowNum}`).value
+            }
+        };
+
+        try {
+            // 使用 POST 傳送更新請求
+            await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors', // 解決跨網域問題
+                body: JSON.stringify(payload)
+            });
+            
+            // 由於 no-cors 無法獲取回傳，我們強制等待 1.5 秒後重新抓取最新計算結果
+            setTimeout(loadData, 1500);
+        } catch (e) {
+            alert("儲存失敗");
+            showLoading(false);
+        }
+    }
+
+    function showLoading(show) {
+        document.getElementById("loading").style.display = show ? "flex" : "none";
+    }
+
+    // 頁面開啟時自動載入
+    window.onload = loadData;
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>語文競賽成績編輯系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
         body { background-color: #f8f9fa; padding: 20px; }
         .table-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .score-input { width: 70px; text-align: center; }
