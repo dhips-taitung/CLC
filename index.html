@@ -47,7 +47,7 @@
 
     <div class="card p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="m-0 fw-bold">成績登錄表</h5>
+            <h5 class="m-0 fw-bold">成績登錄表 (按 Enter 可垂直跳格)</h5>
             <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
         </div>
         <div class="table-responsive">
@@ -62,7 +62,7 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️替換網址
     
     let activeRows = [];
     let lastSummaryData = null;
@@ -130,8 +130,30 @@
         res.rows.forEach((row, i) => {
             if (!row[0]) return;
             const rIdx = i + 3; activeRows.push(rIdx);
-            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}" ${res.isLocked?'disabled':''}></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}" ${res.isLocked?'disabled':''}></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}" ${res.isLocked?'disabled':''}></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})" ${res.isLocked?'disabled':''}>儲存</button></td></tr>`;
+            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})" ${res.isLocked?'disabled':''}>儲存</button></td></tr>`;
         });
+    }
+
+    // 核心功能：垂直 Enter 跳格
+    function handleEnter(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            const currentId = event.target.id;
+            const parts = currentId.split('-');
+            const prefix = parts[0];
+            const currentRIdx = parseInt(parts[1]);
+            
+            // 尋找 activeRows 中的下一個有效 rIdx
+            const currentPos = activeRows.indexOf(currentRIdx);
+            if (currentPos !== -1 && currentPos < activeRows.length - 1) {
+                const nextRIdx = activeRows[currentPos + 1];
+                const nextEl = document.getElementById(`${prefix}-${nextRIdx}`);
+                if (nextEl) {
+                    nextEl.focus();
+                    nextEl.select(); // 自動全選，方便輸入
+                }
+            }
+        }
     }
 
     function handleSaveSingle(rIdx) { handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]); }
@@ -143,75 +165,8 @@
     function downloadWord() {
         if (!lastSummaryData) return;
         const info = lastSummaryData.docInfo, rows = lastSummaryData.docData;
-        
-        let tableRows = rows.map(r => `<tr>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[0]}</td>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[1]}</td>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[2]}</td>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[3]}</td>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[4]}</td>
-            <td style="border:1pt solid black; text-align:center; padding:3px;">${r[5]}</td>
-        </tr>`).join('');
-        
-        const content = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'>
-        <style>
-            @page { size: 21cm 29.7cm; margin: 1cm 1.5cm 1cm 1.5cm; }
-            body { font-family: "微軟正黑體", "標楷體", sans-serif; font-size: 11pt; color: black; line-height: 1.2; }
-            .header-table { width: 100%; border: none; margin-bottom: 5px; }
-            .title-cell { text-align: center; font-size: 15pt; font-weight: bold; width: 80%; padding-left: 10%; }
-            .organizer-cell { text-align: left; vertical-align: top; font-size: 10pt; width: 20%; line-height: 1.1; }
-            /* 修正標題列，去除框線 */
-            .sub-title { width: 100%; text-align: center; font-size: 14pt; border: none; padding: 10px 0; margin-bottom: 0; }
-            .grade-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 0px; }
-            .grade-table th, .grade-table td { border: 1pt solid black; padding: 4px; text-align: center; font-size: 11pt; }
-            .grade-table th { background-color: #ffffff; font-weight: normal; }
-            .sign-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: -1pt; }
-            .sign-table td { border: 1pt solid black; height: 78px; vertical-align: middle; text-align: left; padding: 4px; font-size: 11pt; }
-            .sign-label { vertical-align: top; }
-        </style>
-        </head>
-        <body>
-            <table class="header-table">
-                <tr>
-                    <td class="title-cell">${info.title}</td>
-                    <td class="organizer-cell">承辦單位：<br>${info.school}</td>
-                </tr>
-            </table>
-            <!-- 組別項目標題：設定 border 為 none -->
-            <div class="sub-title">${info.group} ${info.item}</div>
-            <table class="grade-table">
-                <thead>
-                    <tr>
-                        <th style="width:13%;">競賽序</th>
-                        <th style="width:17%;">評審1</th>
-                        <th style="width:17%;">評審2</th>
-                        <th style="width:17%;">評審3</th>
-                        <th style="width:17%;">成績</th>
-                        <th style="width:19%;">名次等第</th>
-                    </tr>
-                </thead>
-                <tbody>${tableRows}</tbody>
-            </table>
-            <table class="sign-table">
-                <tr>
-                    <td style="width:13%;" class="sign-label">評審<br>簽名：</td>
-                    <td style="width:17%;"></td>
-                    <td style="width:17%;"></td>
-                    <td style="width:17%;"></td>
-                    <td style="width:17%; vertical-align:middle; text-align:left;">成績組：</td>
-                    <td style="width:19%;"></td>
-                </tr>
-                <tr>
-                    <td class="sign-label" style="height:40px;">成績<br>檢核：</td>
-                    <td colspan="3"></td>
-                    <td style="vertical-align:middle; text-align:left;">承辦人：</td>
-                    <td></td>
-                </tr>
-            </table>
-        </body></html>`;
-        
+        let tableRows = rows.map(r => `<tr><td style="border:1pt solid black; text-align:center; padding:3px;">${r[0]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[1]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[2]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[3]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[4]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[5]}</td></tr>`).join('');
+        const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>@page { size: 21cm 29.7cm; margin: 1cm 1.5cm 1cm 1.5cm; } body { font-family: "微軟正黑體", "標楷體", sans-serif; font-size: 11pt; color: black; line-height: 1.2; } .header-table { width: 100%; border: none; margin-bottom: 5px; } .title-cell { text-align: center; font-size: 15pt; font-weight: bold; width: 80%; padding-left: 10%; } .organizer-cell { text-align: left; vertical-align: top; font-size: 10pt; width: 20%; line-height: 1.1; } .sub-title { width: 100%; text-align: center; font-size: 14pt; border: none; padding: 10px 0; margin-bottom: 0; } .grade-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 0px; } .grade-table th, .grade-table td { border: 1pt solid black; padding: 4px; text-align: center; font-size: 11pt; } .grade-table th { background-color: #ffffff; font-weight: normal; } .sign-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: -1pt; } .sign-table td { border: 1pt solid black; height: 78px; vertical-align: middle; text-align: left; padding: 4px; font-size: 11pt; } .sign-label { vertical-align: top; }</style></head><body><table class="header-table"><tr><td class="title-cell">${info.title}</td><td class="organizer-cell">承辦單位：<br>${info.school}</td></tr></table><div class="sub-title">${info.group} ${info.item}</div><table class="grade-table"><thead><tr><th style="width:13%;">競賽序</th><th style="width:17%;">評審1</th><th style="width:17%;">評審2</th><th style="width:17%;">評審3</th><th style="width:17%;">成績</th><th style="width:19%;">名次等第</th></tr></thead><tbody>${tableRows}</tbody></table><table class="sign-table"><tr><td style="width:13%;" class="sign-label">評審<br>簽名：</td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%; vertical-align:middle; text-align:left;">成績組：</td><td style="width:19%;"></td></tr><tr><td class="sign-label" style="height:40px;">成績<br>檢核：</td><td colspan="3"></td><td style="vertical-align:middle; text-align:left;">承辦人：</td><td></td></tr></table></body></html>`;
         const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
