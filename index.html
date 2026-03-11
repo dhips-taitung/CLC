@@ -30,8 +30,16 @@
         <div class="row g-3">
             <div class="col-md-4">競賽名稱: <input type="text" id="h-name" class="form-control form-control-sm h-input"></div>
             <div class="col-md-4">文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
-            <div class="col-md-2">組別: <select id="h-group" class="form-select form-select-sm h-input"><option>國小組</option><option>國中組</option><option>高中組</option><option>社會組</option><option>教師組</option></select></div>
-            <div class="col-md-2">項目: <select id="h-item" class="form-select form-select-sm h-input"><option>作文</option><option>演說</option><option>寫字</option><option>朗讀</option></select></div>
+            <div class="col-md-2">組別: 
+                <select id="h-group" class="form-select form-select-sm h-input">
+                    <option>國小組</option><option>國中組</option><option>高中組</option><option>社會組</option><option>教師組</option>
+                </select>
+            </div>
+            <div class="col-md-2">項目: 
+                <select id="h-item" class="form-select form-select-sm h-input">
+                    <option>作文</option><option>演說</option><option>寫字</option><option>朗讀</option>
+                </select>
+            </div>
             <div class="col-md-2">評審人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input" value="3"></div>
             <div class="col-md-4">承辦學校: <input type="text" id="h-school" class="form-control form-control-sm h-input"></div>
             <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
@@ -62,26 +70,33 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️替換網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️請替換網址
     
     let activeRows = [];
     let lastSummaryData = null;
 
     async function handleAction(action, data = null) {
-        showLoading(true, "處理中...");
+        showLoading(true, "連線雲端中...");
         const body = { action: action };
         if (action === 'updateBatch') body.dataList = data; else if (data) body.data = data;
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) });
             const result = await resp.json();
             if (result.rows) renderUI(result);
-            if (result.result && action !== 'getData' && action !== 'saveHeader') alert(result.result || result.message);
+            if (result.result === "error") alert("錯誤：" + result.message);
             showLoading(false);
         } catch (err) { alert("連線失敗"); showLoading(false); }
     }
 
     async function saveHeaderAction() {
-        const data = { name: document.getElementById("h-name").value, doc: document.getElementById("h-doc").value, group: document.getElementById("h-group").value, item: document.getElementById("h-item").value, judges: document.getElementById("h-judges").value, school: document.getElementById("h-school").value };
+        const data = {
+            name: document.getElementById("h-name").value,
+            doc: document.getElementById("h-doc").value,
+            group: document.getElementById("h-group").value,
+            item: document.getElementById("h-item").value,
+            judges: document.getElementById("h-judges").value,
+            school: document.getElementById("h-school").value
+        };
         await handleAction('saveHeader', data);
     }
 
@@ -89,18 +104,17 @@
         if (!confirm("確定要解除鎖定嗎？")) return;
         const data = { group: document.getElementById("h-group").value, item: document.getElementById("h-item").value };
         await handleAction('unlockItem', data);
-        handleAction('getData');
     }
 
     async function handleSummary() {
-        showLoading(true, "產生 Word 中...");
+        showLoading(true, "讀取資料庫...");
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "generateSummary" }) });
             const result = await resp.json();
             if (result.docData) {
                 lastSummaryData = result;
                 document.getElementById('btn-word').classList.remove('d-none');
-                alert("總表產生成功！");
+                alert("總表產生成功，可下載 Word。");
             } else alert(result.result || "無資料");
         } catch (err) { alert("連線失敗"); }
         showLoading(false);
@@ -134,30 +148,25 @@
         });
     }
 
-    // 核心功能：垂直 Enter 跳格
     function handleEnter(event) {
         if (event.key === "Enter") {
             event.preventDefault();
-            const currentId = event.target.id;
-            const parts = currentId.split('-');
-            const prefix = parts[0];
-            const currentRIdx = parseInt(parts[1]);
-            
-            // 尋找 activeRows 中的下一個有效 rIdx
-            const currentPos = activeRows.indexOf(currentRIdx);
-            if (currentPos !== -1 && currentPos < activeRows.length - 1) {
-                const nextRIdx = activeRows[currentPos + 1];
-                const nextEl = document.getElementById(`${prefix}-${nextRIdx}`);
-                if (nextEl) {
-                    nextEl.focus();
-                    nextEl.select(); // 自動全選，方便輸入
-                }
+            const parts = event.target.id.split('-');
+            const currentPos = activeRows.indexOf(parseInt(parts[1]));
+            if (currentPos < activeRows.length - 1) {
+                const nextEl = document.getElementById(`${parts[0]}-${activeRows[currentPos + 1]}`);
+                if (nextEl) { nextEl.focus(); nextEl.select(); }
             }
         }
     }
 
-    function handleSaveSingle(rIdx) { handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]); }
-    function handleSaveAll() { const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value })); handleAction('updateBatch', list); }
+    function handleSaveSingle(rIdx) {
+        handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]);
+    }
+    function handleSaveAll() {
+        const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value }));
+        handleAction('updateBatch', list);
+    }
     function handleArchive() { if (confirm("確定存檔？")) handleAction('writeToDatabase'); }
     function toggleHeader(lock) { document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); if(!lock) document.getElementById("btn-write").disabled = false; }
     function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
@@ -166,7 +175,7 @@
         if (!lastSummaryData) return;
         const info = lastSummaryData.docInfo, rows = lastSummaryData.docData;
         let tableRows = rows.map(r => `<tr><td style="border:1pt solid black; text-align:center; padding:3px;">${r[0]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[1]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[2]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[3]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[4]}</td><td style="border:1pt solid black; text-align:center; padding:3px;">${r[5]}</td></tr>`).join('');
-        const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>@page { size: 21cm 29.7cm; margin: 1cm 1.5cm 1cm 1.5cm; } body { font-family: "微軟正黑體", "標楷體", sans-serif; font-size: 11pt; color: black; line-height: 1.2; } .header-table { width: 100%; border: none; margin-bottom: 5px; } .title-cell { text-align: center; font-size: 15pt; font-weight: bold; width: 80%; padding-left: 10%; } .organizer-cell { text-align: left; vertical-align: top; font-size: 10pt; width: 20%; line-height: 1.1; } .sub-title { width: 100%; text-align: center; font-size: 14pt; border: none; padding: 10px 0; margin-bottom: 0; } .grade-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 0px; } .grade-table th, .grade-table td { border: 1pt solid black; padding: 4px; text-align: center; font-size: 11pt; } .grade-table th { background-color: #ffffff; font-weight: normal; } .sign-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: -1pt; } .sign-table td { border: 1pt solid black; height: 78px; vertical-align: middle; text-align: left; padding: 4px; font-size: 11pt; } .sign-label { vertical-align: top; }</style></head><body><table class="header-table"><tr><td class="title-cell">${info.title}</td><td class="organizer-cell">承辦單位：<br>${info.school}</td></tr></table><div class="sub-title">${info.group} ${info.item}</div><table class="grade-table"><thead><tr><th style="width:13%;">競賽序</th><th style="width:17%;">評審1</th><th style="width:17%;">評審2</th><th style="width:17%;">評審3</th><th style="width:17%;">成績</th><th style="width:19%;">名次等第</th></tr></thead><tbody>${tableRows}</tbody></table><table class="sign-table"><tr><td style="width:13%;" class="sign-label">評審<br>簽名：</td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%; vertical-align:middle; text-align:left;">成績組：</td><td style="width:19%;"></td></tr><tr><td class="sign-label" style="height:40px;">成績<br>檢核：</td><td colspan="3"></td><td style="vertical-align:middle; text-align:left;">承辦人：</td><td></td></tr></table></body></html>`;
+        const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>@page { size: 21cm 29.7cm; margin: 1cm 1.5cm 1cm 1.5cm; } body { font-family: "微軟正黑體", sans-serif; font-size: 11pt; color: black; line-height: 1.2; } .header-table { width: 100%; border: none; margin-bottom: 5px; } .title-cell { text-align: center; font-size: 15pt; font-weight: bold; width: 80%; padding-left: 10%; } .organizer-cell { text-align: left; vertical-align: top; font-size: 10pt; width: 20%; line-height: 1.1; } .sub-title { width: 100%; text-align: center; font-size: 14pt; border: none; padding: 10px 0; } .grade-table { width: 100%; border-collapse: collapse; table-layout: fixed; } .grade-table th, .grade-table td { border: 1pt solid black; padding: 4px; text-align: center; font-size: 11pt; } .sign-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: -1pt; } .sign-table td { border: 1pt solid black; height: 78px; vertical-align: middle; text-align: left; padding: 4px; font-size: 11pt; }</style></head><body><table class="header-table"><tr><td class="title-cell">${info.title}</td><td class="organizer-cell">承辦單位：<br>${info.school}</td></tr></table><div class="sub-title">${info.group} ${info.item}</div><table class="grade-table"><thead><tr><th style="width:13%;">競賽序</th><th style="width:17%;">評審1</th><th style="width:17%;">評審2</th><th style="width:17%;">評審3</th><th style="width:17%;">成績</th><th style="width:19%;">名次等第</th></tr></thead><tbody>${tableRows}</tbody></table><table class="sign-table"><tr><td style="width:13%;">評審<br>簽名：</td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%;"></td><td style="width:17%;">成績組：</td><td style="width:19%;"></td></tr><tr><td style="height:40px;">成績<br>檢核：</td><td colspan="3"></td><td>承辦人：</td><td></td></tr></table></body></html>`;
         const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
