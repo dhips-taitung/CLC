@@ -20,7 +20,7 @@
 
 <div class="loading" id="loading">
     <div class="spinner-border text-primary mb-3"></div>
-    <h5 id="loadMsg" class="text-muted">處理中...</h5>
+    <h5 id="loadMsg" class="text-muted">連線中...</h5>
 </div>
 
 <div class="container-fluid">
@@ -41,8 +41,8 @@
             <div class="col-md-2">評審人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input" value="3"></div>
             <div class="col-md-4">承辦學校: <input type="text" id="h-school" class="form-control form-control-sm h-input"></div>
             <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
-                <button class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯設定</button>
-                <button class="btn btn-sm btn-primary px-3" onclick="handleAction('saveHeader', collectHeader())">鎖定並更新名單</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯</button>
+                <button class="btn btn-sm btn-primary px-3" onclick="saveHeaderAction()">鎖定並更新名單</button>
                 <button class="btn btn-sm btn-warning" onclick="handleSummary()">產生總表</button>
                 <button id="btn-word" class="btn btn-sm btn-info text-white d-none" onclick="downloadWord()">下載 Word</button>
                 <button class="btn btn-sm btn-danger px-3" onclick="handleArchive()">寫入資料庫</button>
@@ -54,7 +54,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">成績登錄表</h5>
             <div class="gap-2 d-flex">
-                <button class="btn btn-sm btn-outline-primary" onclick="handleAction('getData')">刷新數據</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="handleAction('getData')">刷新</button>
                 <button class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
             </div>
         </div>
@@ -74,25 +74,74 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbw4IrylU_RbXJtJejRC4xDijqEClZ0FnOf-v9zU7DcFboP2aoBFpK6RyqaabPG5akye/exec"; // ⚠️請替換網址
+    // ⚠️ 部署後請務必替換此網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwxS_q9Yj-Rii-6iSpsJTbNf5m08w2bRpTxmojKvh92o0w6zW8BNFi4O5uoLUBfjFTN/exec"; 
+    
     let activeRows = [];
     let lastSummaryData = null;
+    let isRequesting = false;
 
-    async function handleAction(action, data = null) {
+    async function handleAction(action, data = null, retries = 3) {
+        if (isRequesting) return;
+        isRequesting = true;
         showLoading(true, "連線雲端中...");
+        
         const body = { action: action };
-        if (action === 'updateBatch') body.dataList = data; else if (data) body.data = data;
-        try {
-            const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) });
-            const result = await resp.json();
-            if (result.rows) renderUI(result);
-            if (result.result && action !== 'getData' && action !== 'saveHeader') alert(result.result);
-            showLoading(false);
-        } catch (err) { alert("連線失敗"); showLoading(false); }
+        if (action === 'updateBatch') body.dataList = data; 
+        else if (data) body.data = data;
+
+        for (let i = 0; i < retries; i++) {
+            try {
+                const resp = await fetch(GAS_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify(body),
+                    mode: 'cors' 
+                });
+                
+                if (!resp.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${resp.status}`);
+                
+                const result = await resp.json();
+                
+                if (result.rows) renderUI(result);
+                if (result.result && action !== 'getData') {
+                    if (result.result.includes("失敗") || result.result.includes("錯誤")) {
+                        alert("系統訊息: " + result.result);
+                    } else if (action === 'writeToDatabase') {
+                        alert("存檔成功！名單已歸檔並清空。");
+                    }
+                }
+                
+                isRequesting = false;
+                showLoading(false);
+                return;
+            } catch (err) {
+                console.warn(`第 ${i+1} 次嘗試失敗:`, err);
+                if (i === retries - 1) {
+                    alert("連線失敗！\n\n可能原因：\n1. GAS 網址已更換。\n2. 網路連線中斷。\n3. 指令碼發生錯誤。\n\n詳細資訊：" + err.message);
+                } else {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+        }
+        isRequesting = false;
+        showLoading(false);
+    }
+
+    async function saveHeaderAction() {
+        const data = {
+            name: document.getElementById("h-name").value,
+            doc: document.getElementById("h-doc").value,
+            group: document.getElementById("h-group").value,
+            item: document.getElementById("h-item").value,
+            judges: document.getElementById("h-judges").value,
+            school: document.getElementById("h-school").value
+        };
+        await handleAction('saveHeader', data);
     }
 
     async function handleSummary() {
         showLoading(true, "正在產生總表...");
+        // 此處不使用 handleAction 以便處理下載數據
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "generateSummary" }) });
             const result = await resp.json();
@@ -100,11 +149,51 @@
                 lastSummaryData = result;
                 document.getElementById('btn-word').classList.remove('d-none');
                 alert("總表產生成功！您可以下載 Word 檔案。");
-            } else alert(result.result);
-        } catch (err) { alert("連線失敗"); }
+            } else {
+                alert(result.result || "查無資料");
+            }
+        } catch (err) { alert("總表連線失敗：" + err.message); }
         showLoading(false);
     }
 
+    function renderUI(res) {
+        document.getElementById("h-name").value = res.header.name || "";
+        document.getElementById("h-doc").value = res.header.doc || "";
+        document.getElementById("h-group").value = res.header.group || "國小組";
+        document.getElementById("h-item").value = res.header.item || "演說";
+        document.getElementById("h-judges").value = res.header.judges || 3;
+        document.getElementById("h-school").value = res.header.school || "";
+        toggleHeader(!!res.header.name);
+
+        const vHead = document.getElementById("thV"), wHead = document.getElementById("thW");
+        if (res.project === "寫字") { vHead.innerText = "錯漏字"; wHead.innerText = "未寫完"; }
+        else if (res.project === "演說") { vHead.innerText = "-"; wHead.innerText = "時間"; }
+
+        const body = document.getElementById("scoreBody");
+        body.innerHTML = ""; activeRows = [];
+        res.rows.forEach((row, i) => {
+            if (!row[0]) return;
+            const rIdx = i + 3; activeRows.push(rIdx);
+            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}"></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}"></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}"></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}"></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}"></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})">儲存</button></td></tr>`;
+        });
+    }
+
+    function handleSaveSingle(rIdx) {
+        handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]);
+    }
+
+    function handleSaveAll() {
+        const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value }));
+        handleAction('updateBatch', list);
+    }
+
+    function handleArchive() { if (confirm("確定寫入資料庫並清空目前名單？")) handleAction('writeToDatabase'); }
+    function toggleHeader(lock) { 
+        document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); 
+        document.getElementById("btn-write").disabled = lock;
+    }
+    function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
+    
     function downloadWord() {
         if (!lastSummaryData) return;
         const info = lastSummaryData.docInfo;
@@ -141,23 +230,9 @@
                 </thead>
                 <tbody>${tableHtml}</tbody>
             </table>
-
-            <!-- 簽名欄位表格 -->
             <table class="sign-table">
-                <tr>
-                    <td class="label-cell">評審簽名：</td>
-                    <td style="width:18%;"></td>
-                    <td style="width:18%;"></td>
-                    <td style="width:18%;"></td>
-                    <td class="label-cell">成績組：</td>
-                    <td style="width:16%;"></td>
-                </tr>
-                <tr>
-                    <td class="label-cell" style="height:40px;">成績檢核：</td>
-                    <td colspan="3"></td>
-                    <td class="label-cell">承辦人：</td>
-                    <td></td>
-                </tr>
+                <tr><td class="label-cell">評審簽名：</td><td style="width:18%;"></td><td style="width:18%;"></td><td style="width:18%;"></td><td class="label-cell">成績組：</td><td style="width:16%;"></td></tr>
+                <tr><td class="label-cell" style="height:40px;">成績檢核：</td><td colspan="3"></td><td class="label-cell">承辦人：</td><td></td></tr>
             </table>
         </body></html>`;
         
@@ -168,34 +243,6 @@
         link.click();
     }
 
-    function renderUI(res) {
-        document.getElementById("h-name").value = res.header.name || "";
-        document.getElementById("h-doc").value = res.header.doc || "";
-        document.getElementById("h-group").value = res.header.group || "國小組";
-        document.getElementById("h-item").value = res.header.item || "演說";
-        document.getElementById("h-judges").value = res.header.judges || 3;
-        document.getElementById("h-school").value = res.header.school || "";
-        toggleHeader(!!res.header.name);
-        const vHead = document.getElementById("thV"), wHead = document.getElementById("thW");
-        if (res.project === "寫字") { vHead.innerText = "錯漏字"; wHead.innerText = "未寫完"; }
-        else if (res.project === "演說") { vHead.innerText = "-"; wHead.innerText = "時間"; }
-        const body = document.getElementById("scoreBody");
-        body.innerHTML = ""; activeRows = [];
-        res.rows.forEach((row, i) => {
-            if (!row[0]) return;
-            const rIdx = i + 3; activeRows.push(rIdx);
-            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}"></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}"></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}"></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}"></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}"></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})">儲存</button></td></tr>`;
-        });
-    }
-
-    function collectHeader() {
-        return { name: document.getElementById("h-name").value, doc: document.getElementById("h-doc").value, group: document.getElementById("h-group").value, item: document.getElementById("h-item").value, judges: document.getElementById("h-judges").value, school: document.getElementById("h-school").value };
-    }
-    function handleSaveSingle(rIdx) { handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]); }
-    function handleSaveAll() { const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value })); handleAction('updateBatch', list); }
-    function handleArchive() { if (confirm("確定寫入資料庫並清空名單？")) handleAction('writeToDatabase'); }
-    function toggleHeader(lock) { document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); document.getElementById("btn-write").disabled = lock; }
-    function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
     window.onload = () => handleAction('getData');
 </script>
 </body>
