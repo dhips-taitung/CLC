@@ -24,6 +24,7 @@
 </div>
 
 <div class="container-fluid">
+    <!-- 頂部設定區 -->
     <div class="card p-4">
         <div class="row g-3">
             <div class="col-md-4">競賽名稱: <input type="text" id="h-name" class="form-control form-control-sm h-input"></div>
@@ -41,21 +42,22 @@
             <div class="col-md-2">評審人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input" value="3"></div>
             <div class="col-md-4">承辦學校: <input type="text" id="h-school" class="form-control form-control-sm h-input"></div>
             <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
-                <button class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯</button>
-                <button class="btn btn-sm btn-primary px-3" onclick="saveHeaderAction()">鎖定並更新名單</button>
-                <button class="btn btn-sm btn-warning" onclick="handleSummary()">產生總表</button>
+                <button id="btn-edit" class="btn btn-sm btn-outline-secondary" onclick="toggleHeader(false)">編輯設定</button>
+                <button id="btn-write" class="btn btn-sm btn-primary px-3" onclick="saveHeaderAction()">鎖定並更新名單</button>
+                <button id="btn-summary" class="btn btn-sm btn-warning" onclick="handleSummary()">產生總表</button>
                 <button id="btn-word" class="btn btn-sm btn-info text-white d-none" onclick="downloadWord()">下載 Word</button>
-                <button class="btn btn-sm btn-danger px-3" onclick="handleArchive()">寫入資料庫</button>
+                <button id="btn-archive" class="btn btn-sm btn-danger px-3" onclick="handleArchive()">寫入資料庫</button>
             </div>
         </div>
     </div>
 
+    <!-- 成績編輯區 -->
     <div class="card p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">成績登錄表</h5>
             <div class="gap-2 d-flex">
-                <button class="btn btn-sm btn-outline-primary" onclick="handleAction('getData')">刷新</button>
-                <button class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
+                <button id="btn-refresh" class="btn btn-sm btn-outline-primary" onclick="handleAction('getData')">刷新數據</button>
+                <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
             </div>
         </div>
         <div class="table-responsive">
@@ -74,13 +76,14 @@
 </div>
 
 <script>
-    // ⚠️ 部署後請務必替換此網址
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwxS_q9Yj-Rii-6iSpsJTbNf5m08w2bRpTxmojKvh92o0w6zW8BNFi4O5uoLUBfjFTN/exec"; 
+    // ⚠️ 務必替換此網址為您的 GAS 部署網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxx2ntG5zvDaJciL4nX6OIKTcks2TjJoD99jpUhSw5LAWpB99yjDzgIfj407YUmBWZ0/exec"; 
     
     let activeRows = [];
     let lastSummaryData = null;
     let isRequesting = false;
 
+    // 通用 API 請求函式
     async function handleAction(action, data = null, retries = 3) {
         if (isRequesting) return;
         isRequesting = true;
@@ -99,25 +102,20 @@
                 });
                 
                 if (!resp.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${resp.status}`);
-                
                 const result = await resp.json();
                 
                 if (result.rows) renderUI(result);
-                if (result.result && action !== 'getData') {
-                    if (result.result.includes("失敗") || result.result.includes("錯誤")) {
-                        alert("系統訊息: " + result.result);
-                    } else if (action === 'writeToDatabase') {
-                        alert("存檔成功！名單已歸檔並清空。");
-                    }
+                if (result.result && action !== 'getData' && action !== 'saveHeader') {
+                    alert(result.result);
                 }
                 
                 isRequesting = false;
                 showLoading(false);
                 return;
             } catch (err) {
-                console.warn(`第 ${i+1} 次嘗試失敗:`, err);
+                console.warn(`嘗試第 ${i+1} 次失敗:`, err);
                 if (i === retries - 1) {
-                    alert("連線失敗！\n\n可能原因：\n1. GAS 網址已更換。\n2. 網路連線中斷。\n3. 指令碼發生錯誤。\n\n詳細資訊：" + err.message);
+                    alert("連線失敗！\n\n錯誤資訊：" + err.message);
                 } else {
                     await new Promise(r => setTimeout(r, 2000));
                 }
@@ -127,6 +125,7 @@
         showLoading(false);
     }
 
+    // 鎖定設定並更新名單
     async function saveHeaderAction() {
         const data = {
             name: document.getElementById("h-name").value,
@@ -139,37 +138,50 @@
         await handleAction('saveHeader', data);
     }
 
+    // 處理總表產生
     async function handleSummary() {
         showLoading(true, "正在產生總表...");
-        // 此處不使用 handleAction 以便處理下載數據
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "generateSummary" }) });
             const result = await resp.json();
             if (result.docData) {
                 lastSummaryData = result;
-                document.getElementById('btn-word').classList.remove('d-none');
+                const btnWord = document.getElementById('btn-word');
+                if(btnWord) btnWord.classList.remove('d-none');
                 alert("總表產生成功！您可以下載 Word 檔案。");
             } else {
-                alert(result.result || "查無資料");
+                alert(result.result || "查無符合資料");
             }
-        } catch (err) { alert("總表連線失敗：" + err.message); }
+        } catch (err) { alert("連線失敗：" + err.message); }
         showLoading(false);
     }
 
+    // 渲染 UI 表格
     function renderUI(res) {
-        document.getElementById("h-name").value = res.header.name || "";
-        document.getElementById("h-doc").value = res.header.doc || "";
-        document.getElementById("h-group").value = res.header.group || "國小組";
-        document.getElementById("h-item").value = res.header.item || "演說";
-        document.getElementById("h-judges").value = res.header.judges || 3;
-        document.getElementById("h-school").value = res.header.school || "";
+        const elName = document.getElementById("h-name");
+        const elDoc = document.getElementById("h-doc");
+        const elGroup = document.getElementById("h-group");
+        const elItem = document.getElementById("h-item");
+        const elJudges = document.getElementById("h-judges");
+        const elSchool = document.getElementById("h-school");
+
+        if(elName) elName.value = res.header.name || "";
+        if(elDoc) elDoc.value = res.header.doc || "";
+        if(elGroup) elGroup.value = res.header.group || "國小組";
+        if(elItem) elItem.value = res.header.item || "演說";
+        if(elJudges) elJudges.value = res.header.judges || 3;
+        if(elSchool) elSchool.value = res.header.school || "";
+        
         toggleHeader(!!res.header.name);
 
         const vHead = document.getElementById("thV"), wHead = document.getElementById("thW");
-        if (res.project === "寫字") { vHead.innerText = "錯漏字"; wHead.innerText = "未寫完"; }
-        else if (res.project === "演說") { vHead.innerText = "-"; wHead.innerText = "時間"; }
+        if (vHead && wHead) {
+            if (res.project === "寫字") { vHead.innerText = "錯漏字"; wHead.innerText = "未寫完"; }
+            else if (res.project === "演說") { vHead.innerText = "-"; wHead.innerText = "時間"; }
+        }
 
         const body = document.getElementById("scoreBody");
+        if(!body) return;
         body.innerHTML = ""; activeRows = [];
         res.rows.forEach((row, i) => {
             if (!row[0]) return;
@@ -188,12 +200,35 @@
     }
 
     function handleArchive() { if (confirm("確定寫入資料庫並清空目前名單？")) handleAction('writeToDatabase'); }
+    
+    // 切換表頭鎖定狀態 (防錯修正)
     function toggleHeader(lock) { 
         document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); 
-        document.getElementById("btn-write").disabled = lock;
+        const btnWrite = document.getElementById("btn-write");
+        if(btnWrite) btnWrite.disabled = lock;
     }
-    function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
+
+    // 顯示/隱藏載入中 (防錯修正)
+    function showLoading(show, txt) { 
+        const elLoad = document.getElementById("loading");
+        const elMsg = document.getElementById("loadMsg");
+        if(elLoad) elLoad.style.display = show ? "flex" : "none"; 
+        if(elMsg) elMsg.innerText = txt; 
+        
+        // 批次停用所有按鈕防止重複點擊
+        document.querySelectorAll("button").forEach(btn => {
+            // 如果是編輯按鈕且正在載入中，也停用；如果載入結束，則啟用
+            btn.disabled = show; 
+        });
+        
+        // 載入結束後，根據鎖定狀態恢復按鈕
+        if(!show) {
+            const elName = document.getElementById("h-name");
+            if(elName) toggleHeader(elName.disabled);
+        }
+    }
     
+    // Word 下載邏輯
     function downloadWord() {
         if (!lastSummaryData) return;
         const info = lastSummaryData.docInfo;
@@ -218,18 +253,8 @@
         </head>
         <body>
             <h2>語文競賽成績總表</h2>
-            <div class="info-box">
-                承辦學校：${info.school} <br>
-                組別：${info.group} &nbsp;&nbsp; 項目：${info.item} &nbsp;&nbsp; 錄取名額：${info.quota}名
-            </div>
-            <table>
-                <thead>
-                    <tr style="background-color:#eee;">
-                        <th style="width:10%;">競賽序</th><th>評審1</th><th>評審2</th><th>評審3</th><th style="width:15%;">總成績</th><th style="width:15%;">名次</th>
-                    </tr>
-                </thead>
-                <tbody>${tableHtml}</tbody>
-            </table>
+            <div class="info-box">承辦學校：${info.school} <br>組別：${info.group} &nbsp;&nbsp; 項目：${info.item} &nbsp;&nbsp; 錄取名額：${info.quota}名</div>
+            <table><thead><tr style="background-color:#eee;"><th style="width:10%;">競賽序</th><th>評審1</th><th>評審2</th><th>評審3</th><th style="width:15%;">總成績</th><th style="width:15%;">名次</th></tr></thead><tbody>${tableHtml}</tbody></table>
             <table class="sign-table">
                 <tr><td class="label-cell">評審簽名：</td><td style="width:18%;"></td><td style="width:18%;"></td><td style="width:18%;"></td><td class="label-cell">成績組：</td><td style="width:16%;"></td></tr>
                 <tr><td class="label-cell" style="height:40px;">成績檢核：</td><td colspan="3"></td><td class="label-cell">承辦人：</td><td></td></tr>
