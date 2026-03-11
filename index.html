@@ -25,14 +25,14 @@
 </div>
 
 <div class="container-fluid">
-    <!-- 頂部設定 -->
+    <!-- 頂部設定區 -->
     <div class="card p-4">
         <div id="lockStatus" class="mb-3 d-none">
-            <span class="is-locked text-center d-block">🔒 此組別項目已鎖定 (AT欄標註*)，成績已封存無法編輯。</span>
+            <span class="is-locked text-center d-block">🔒 此組別項目已鎖定 (AT欄標註*)，成績已封存。</span>
         </div>
         <div class="row g-3">
             <div class="col-md-4">競賽名稱: <input type="text" id="h-name" class="form-control form-control-sm h-input"></div>
-            <div class="col-md-4">核定文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
+            <div class="col-md-4">文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
             <div class="col-md-2">組別: 
                 <select id="h-group" class="form-select form-select-sm h-input">
                     <option>國小組</option><option>國中組</option><option>高中組</option><option>社會組</option><option>教師組</option>
@@ -56,11 +56,14 @@
         </div>
     </div>
 
-    <!-- 成績表 -->
+    <!-- 成績編輯區 -->
     <div class="card p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold text-primary">成績登錄表 (Enter垂直導航)</h5>
-            <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
+            <div class="gap-2">
+                <button class="btn btn-sm btn-outline-primary px-3" onclick="handleAction('getData')">刷新</button>
+                <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-bordered text-center align-middle">
@@ -74,48 +77,38 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️請替換網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️請替換您的網址
     
     let activeRows = [];
     let lastSummaryData = null;
 
     async function handleAction(action, data = null) {
-        showLoading(true, "處理中...");
+        showLoading(true, action === 'getData' ? "正在讀取最新成績..." : "處理中...");
         const body = { action: action };
         if (action === 'updateBatch') body.dataList = data; else if (data) body.data = data;
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) });
             const result = await resp.json();
             if (result.rows) renderUI(result);
-            if (result.result === "error") alert("系統警告：" + result.message);
+            if (result.result === "error") alert("警告：" + result.message);
             showLoading(false);
-        } catch (err) { alert("連線失敗"); showLoading(false); }
+        } catch (err) { alert("連線失敗，請檢查網路。"); showLoading(false); }
     }
 
     async function saveHeaderAction() {
-        const data = {
-            name: document.getElementById("h-name").value,
-            doc: document.getElementById("h-doc").value,
-            group: document.getElementById("h-group").value,
-            item: document.getElementById("h-item").value,
-            judges: document.getElementById("h-judges").value,
-            school: document.getElementById("h-school").value
-        };
+        const data = { name: document.getElementById("h-name").value, doc: document.getElementById("h-doc").value, group: document.getElementById("h-group").value, item: document.getElementById("h-item").value, judges: document.getElementById("h-judges").value, school: document.getElementById("h-school").value };
         await handleAction('saveHeader', data);
     }
 
     async function unlockAction() {
-        if (!confirm("確定要解除目前的鎖定標記(*)嗎？\n解除後將可再次編輯及儲存成績。")) return;
-        const data = {
-            group: document.getElementById("h-group").value,
-            item: document.getElementById("h-item").value
-        };
+        if (!confirm("確定要解除鎖定標記(*)嗎？")) return;
+        const data = { group: document.getElementById("h-group").value, item: document.getElementById("h-item").value };
         await handleAction('unlockItem', data);
         handleAction('getData');
     }
 
     async function handleSummary() {
-        showLoading(true, "產生 Word 中...");
+        showLoading(true, "產生總表中...");
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "generateSummary" }) });
             const result = await resp.json();
@@ -136,26 +129,11 @@
         document.getElementById("h-judges").value = res.header.judges || 3;
         document.getElementById("h-school").value = res.header.school || "";
         
-        // 鎖定狀態 UI 控制
-        const lockStatus = document.getElementById("lockStatus");
-        const btnUnlock = document.getElementById("btn-unlock");
-        const btnSaveAll = document.getElementById("btn-saveall");
-        const btnWrite = document.getElementById("btn-write");
-        const btnDb = document.getElementById("btn-db");
-
+        const lockStatus = document.getElementById("lockStatus"), btnUnlock = document.getElementById("btn-unlock"), btnSaveAll = document.getElementById("btn-saveall"), btnWrite = document.getElementById("btn-write"), btnDb = document.getElementById("btn-db");
         if (res.isLocked) {
-            lockStatus.classList.remove('d-none');
-            btnUnlock.classList.remove('d-none');
-            btnSaveAll.disabled = true;
-            btnWrite.disabled = true;
-            btnDb.disabled = true;
-            toggleHeader(true);
+            lockStatus.classList.remove('d-none'); btnUnlock.classList.remove('d-none'); btnSaveAll.disabled = true; btnWrite.disabled = true; btnDb.disabled = true; toggleHeader(true);
         } else {
-            lockStatus.classList.add('d-none');
-            btnUnlock.classList.add('d-none');
-            btnSaveAll.disabled = false;
-            btnDb.disabled = false;
-            toggleHeader(!!res.header.name);
+            lockStatus.classList.add('d-none'); btnUnlock.classList.add('d-none'); btnSaveAll.disabled = false; btnDb.disabled = false; toggleHeader(!!res.header.name);
         }
 
         const vHead = document.getElementById("thV"), wHead = document.getElementById("thW");
@@ -167,7 +145,7 @@
         res.rows.forEach((row, i) => {
             if (!row[0]) return;
             const rIdx = i + 3; activeRows.push(rIdx);
-            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold text-muted">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})" ${res.isLocked?'disabled':''}>儲存</button></td></tr>`;
+            body.innerHTML += `<tr><td>${row[0]}</td><td><input type="number" class="score-input" id="e-${rIdx}" value="${row[4]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="i-${rIdx}" value="${row[8]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" class="score-input" id="m-${rIdx}" value="${row[12]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="u-cell">${row[20] ? parseFloat(row[20]).toFixed(2) : ""}</td><td><input type="number" class="score-input" id="v-${rIdx}" value="${row[21]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td><input type="number" step="0.01" class="score-input" id="w-${rIdx}" value="${row[22]}" onkeydown="handleEnter(event)" ${res.isLocked?'disabled':''}></td><td class="text-danger fw-bold">${row[23]}</td><td class="y-cell">${row[24] ? parseFloat(row[24]).toFixed(2) : ""}</td><td class="fw-bold">${row[31] || ""}</td><td><button class="btn btn-dark btn-sm" onclick="handleSaveSingle(${rIdx})" ${res.isLocked?'disabled':''}>儲存</button></td></tr>`;
         });
     }
 
@@ -190,7 +168,7 @@
         const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value }));
         handleAction('updateBatch', list);
     }
-    function handleArchive() { if (confirm("確定封存成績？封存後將會清空目前名單並鎖定項目。")) handleAction('writeToDatabase'); }
+    function handleArchive() { if (confirm("確定寫入資料庫並清空名單？")) handleAction('writeToDatabase'); }
     function toggleHeader(lock) { document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); if(!lock) document.getElementById("btn-write").disabled = false; }
     function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
     
