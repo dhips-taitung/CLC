@@ -13,7 +13,7 @@
         .score-input { width: 75px; text-align: center; border: 1px solid #ced4da; border-radius: 4px; padding: 4px; }
         .u-cell { color: #0d6efd; font-weight: 700; background-color: #f8fbfe; }
         .y-cell { color: #198754; font-weight: 700; font-size: 1.05rem; }
-        .is-locked { background-color: #fff3f3; color: #dc3545; font-weight: bold; border: 2px solid #dc3545; border-radius: 5px; padding: 5px; }
+        .is-locked { background-color: #fff3f3; color: #dc3545; font-weight: bold; border: 1px solid #dc3545; padding: 5px; }
         .loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.85); z-index: 10000; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
@@ -25,24 +25,13 @@
 </div>
 
 <div class="container-fluid">
-    <!-- 頂部設定 -->
     <div class="card p-4">
-        <div id="lockStatus" class="mb-3 d-none">
-            <span class="is-locked">⚠️ 此項目目前為「鎖定狀態」，無法編輯。如需修改請先點擊右側解除鎖定。</span>
-        </div>
+        <div id="lockStatus" class="mb-3 d-none"><span class="is-locked">🔒 此項目已鎖定(已完賽)</span></div>
         <div class="row g-3">
             <div class="col-md-4">競賽名稱: <input type="text" id="h-name" class="form-control form-control-sm h-input"></div>
-            <div class="col-md-4">核定文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
-            <div class="col-md-2">組別: 
-                <select id="h-group" class="form-select form-select-sm h-input">
-                    <option>國小組</option><option>國中組</option><option>高中組</option><option>社會組</option><option>教師組</option>
-                </select>
-            </div>
-            <div class="col-md-2">項目: 
-                <select id="h-item" class="form-select form-select-sm h-input">
-                    <option>字音字形</option><option>朗讀</option><option>作文</option><option>演說</option><option>寫字</option>
-                </select>
-            </div>
+            <div class="col-md-4">文號: <input type="text" id="h-doc" class="form-control form-control-sm h-input"></div>
+            <div class="col-md-2">組別: <select id="h-group" class="form-select form-select-sm h-input"><option>國小組</option><option>國中組</option><option>高中組</option><option>社會組</option><option>教師組</option></select></div>
+            <div class="col-md-2">項目: <select id="h-item" class="form-select form-select-sm h-input"><option>作文</option><option>演說</option><option>寫字</option><option>朗讀</option></select></div>
             <div class="col-md-2">評審人數: <input type="number" id="h-judges" class="form-control form-control-sm h-input" value="3"></div>
             <div class="col-md-4">承辦學校: <input type="text" id="h-school" class="form-control form-control-sm h-input"></div>
             <div class="col-md-6 d-flex align-items-end justify-content-end gap-2">
@@ -51,7 +40,7 @@
                 <button id="btn-write" class="btn btn-sm btn-primary px-3" onclick="saveHeaderAction()">鎖定並更新名單</button>
                 <button class="btn btn-sm btn-warning" onclick="handleSummary()">產生總表(Word)</button>
                 <button id="btn-word" class="btn btn-sm btn-info text-white d-none" onclick="downloadWord()">下載 Word</button>
-                <button id="btn-db" class="btn btn-sm btn-danger px-3" onclick="handleArchive()">寫入資料庫(存檔)</button>
+                <button id="btn-db" class="btn btn-sm btn-danger px-3" onclick="handleArchive()">存檔至資料庫</button>
             </div>
         </div>
     </div>
@@ -59,19 +48,12 @@
     <div class="card p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">成績登錄表</h5>
-            <div class="gap-2 d-flex">
-                <button class="btn btn-sm btn-outline-primary" onclick="handleAction('getData')">刷新</button>
-                <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
-            </div>
+            <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
         </div>
         <div class="table-responsive">
             <table class="table table-bordered text-center align-middle">
                 <thead class="table-dark">
-                    <tr>
-                        <th style="width: 50px;">序</th><th>評審1</th><th>評審2</th><th>評審3</th>
-                        <th class="u-cell">均一分</th><th id="thV">V</th><th id="thW">W</th>
-                        <th>扣分</th><th>總成績</th><th style="width:60px;">名次</th><th>操作</th>
-                    </tr>
+                    <tr><th style="width: 50px;">競賽序</th><th>評審 1</th><th>評審 2</th><th>評審 3</th><th class="u-cell">均一分</th><th id="thV">V</th><th id="thW">W</th><th>扣分</th><th>總成績</th><th>名次</th><th>操作</th></tr>
                 </thead>
                 <tbody id="scoreBody"></tbody>
             </table>
@@ -80,64 +62,47 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; // ⚠️替換網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxMHstMw1LXnM2hmyYj03HZwpC5dhF6td27VNHBw7oZi6CxLuL8QJiD1X4qMYv64rSa/exec"; 
     
     let activeRows = [];
     let lastSummaryData = null;
-    let isRequesting = false;
 
     async function handleAction(action, data = null) {
-        if (isRequesting) return;
-        isRequesting = true;
-        showLoading(true, "連線雲端中...");
+        showLoading(true, "處理中...");
         const body = { action: action };
         if (action === 'updateBatch') body.dataList = data; else if (data) body.data = data;
-
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) });
             const result = await resp.json();
-            
             if (result.rows) renderUI(result);
-            if (result.result === "error" || (result.result && action !== 'getData')) alert(result.result || result.message);
-            
-            isRequesting = false;
+            if (result.result && action !== 'getData' && action !== 'saveHeader') alert(result.result || result.message);
             showLoading(false);
-        } catch (err) { alert("連線失敗：" + err.message); isRequesting = false; showLoading(false); }
+        } catch (err) { alert("連線失敗"); showLoading(false); }
     }
 
     async function saveHeaderAction() {
-        const data = {
-            name: document.getElementById("h-name").value,
-            doc: document.getElementById("h-doc").value,
-            group: document.getElementById("h-group").value,
-            item: document.getElementById("h-item").value,
-            judges: document.getElementById("h-judges").value,
-            school: document.getElementById("h-school").value
-        };
+        const data = { name: document.getElementById("h-name").value, doc: document.getElementById("h-doc").value, group: document.getElementById("h-group").value, item: document.getElementById("h-item").value, judges: document.getElementById("h-judges").value, school: document.getElementById("h-school").value };
         await handleAction('saveHeader', data);
     }
 
     async function unlockAction() {
-        if (!confirm("確定要解除此項目的鎖定嗎？")) return;
-        const data = {
-            group: document.getElementById("h-group").value,
-            item: document.getElementById("h-item").value
-        };
+        if (!confirm("確定要解除鎖定嗎？")) return;
+        const data = { group: document.getElementById("h-group").value, item: document.getElementById("h-item").value };
         await handleAction('unlockItem', data);
         handleAction('getData');
     }
 
     async function handleSummary() {
-        showLoading(true, "查詢並產生 Word...");
+        showLoading(true, "產生 Word 中...");
         try {
             const resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "generateSummary" }) });
             const result = await resp.json();
             if (result.docData) {
                 lastSummaryData = result;
                 document.getElementById('btn-word').classList.remove('d-none');
-                alert("總表產生成功！請點擊藍色按鈕下載 Word。");
-            } else { alert(result.result || "查無封存資料"); }
-        } catch (err) { alert("連線失敗：" + err.message); }
+                alert("總表產生成功！");
+            } else alert(result.result || "無資料");
+        } catch (err) { alert("連線失敗"); }
         showLoading(false);
     }
 
@@ -145,30 +110,15 @@
         document.getElementById("h-name").value = res.header.name || "";
         document.getElementById("h-doc").value = res.header.doc || "";
         document.getElementById("h-group").value = res.header.group || "國小組";
-        document.getElementById("h-item").value = res.header.item || "演說";
+        document.getElementById("h-item").value = res.header.item || "作文";
         document.getElementById("h-judges").value = res.header.judges || 3;
         document.getElementById("h-school").value = res.header.school || "";
         
-        // 鎖定狀態處理
-        const lockStatus = document.getElementById("lockStatus");
-        const btnUnlock = document.getElementById("btn-unlock");
-        const btnSaveAll = document.getElementById("btn-saveall");
-        const btnWrite = document.getElementById("btn-write");
-        const btnDb = document.getElementById("btn-db");
-
+        const lockStatus = document.getElementById("lockStatus"), btnUnlock = document.getElementById("btn-unlock"), btnSaveAll = document.getElementById("btn-saveall"), btnWrite = document.getElementById("btn-write"), btnDb = document.getElementById("btn-db");
         if (res.isLocked) {
-            lockStatus.classList.remove('d-none');
-            btnUnlock.classList.remove('d-none');
-            btnSaveAll.disabled = true;
-            btnWrite.disabled = true;
-            btnDb.disabled = true;
-            toggleHeader(true);
+            lockStatus.classList.remove('d-none'); btnUnlock.classList.remove('d-none'); btnSaveAll.disabled = true; btnWrite.disabled = true; btnDb.disabled = true; toggleHeader(true);
         } else {
-            lockStatus.classList.add('d-none');
-            btnUnlock.classList.add('d-none');
-            btnSaveAll.disabled = false;
-            btnDb.disabled = false;
-            toggleHeader(!!res.header.name);
+            lockStatus.classList.add('d-none'); btnUnlock.classList.add('d-none'); btnSaveAll.disabled = false; btnDb.disabled = false; toggleHeader(!!res.header.name);
         }
 
         const vHead = document.getElementById("thV"), wHead = document.getElementById("thW");
@@ -184,32 +134,66 @@
         });
     }
 
-    function handleSaveSingle(rIdx) {
-        handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]);
-    }
-
-    function handleSaveAll() {
-        const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value }));
-        handleAction('updateBatch', list);
-    }
-
-    function handleArchive() { if (confirm("確定寫入資料庫並清空目前名單？")) handleAction('writeToDatabase'); }
+    function handleSaveSingle(rIdx) { handleAction('updateBatch', [{ row: rIdx, e: document.getElementById(`e-${rIdx}`).value, i: document.getElementById(`i-${rIdx}`).value, m: document.getElementById(`m-${rIdx}`).value, v: document.getElementById(`v-${rIdx}`).value, w: document.getElementById(`w-${rIdx}`).value }]); }
+    function handleSaveAll() { const list = activeRows.map(r => ({ row: r, e: document.getElementById(`e-${r}`).value, i: document.getElementById(`i-${r}`).value, m: document.getElementById(`m-${r}`).value, v: document.getElementById(`v-${r}`).value, w: document.getElementById(`w-${r}`).value })); handleAction('updateBatch', list); }
+    function handleArchive() { if (confirm("確定存檔？")) handleAction('writeToDatabase'); }
     function toggleHeader(lock) { document.querySelectorAll(".h-input").forEach(el => el.disabled = lock); if(!lock) document.getElementById("btn-write").disabled = false; }
     function showLoading(show, txt) { document.getElementById("loading").style.display = show ? "flex" : "none"; document.getElementById("loadMsg").innerText = txt; }
     
     function downloadWord() {
         if (!lastSummaryData) return;
-        const info = lastSummaryData.docInfo;
-        const rows = lastSummaryData.docData;
-        let tableHtml = rows.map(r => `<tr><td style="border:1px solid black; text-align:center;">${r[0]}</td><td style="border:1px solid black; text-align:center;">${r[1]}</td><td style="border:1px solid black; text-align:center;">${r[2]}</td><td style="border:1px solid black; text-align:center;">${r[3]}</td><td style="border:1px solid black; text-align:center;">${r[4]}</td><td style="border:1px solid black; text-align:center;">${r[5]}</td></tr>`).join('');
-        const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>@page { size: A4; margin: 1.5cm; } body { font-family: "微軟正黑體", sans-serif; font-size: 11pt; } h2 { text-align: center; margin-bottom: 5px; } .info-box { width: 100%; margin-bottom: 10px; } table { width: 100%; border-collapse: collapse; margin-bottom: 15px; } th, td { border: 1px solid black; padding: 4px; font-size: 10pt; } .sign-table { width: 100%; border-collapse: collapse; margin-top: 10px; } .sign-table td { border: 1px solid black; height: 60px; vertical-align: middle; text-align: center; } .label-cell { width: 15%; background-color: #f2f2f2; font-weight: bold; }</style></head><body><h2>語文競賽成績總表</h2><div class="info-box">承辦學校：${info.school} <br>組別：${info.group} &nbsp;&nbsp; 項目：${info.item} &nbsp;&nbsp; 錄取名額：${info.quota}名</div><table><thead><tr style="background-color:#eee;"><th style="width:10%;">競賽序</th><th>評審1</th><th>評審2</th><th>評審3</th><th style="width:15%;">總成績</th><th style="width:15%;">名次</th></tr></thead><tbody>${tableHtml}</tbody></table><table class="sign-table"><tr><td class="label-cell">評審簽名：</td><td style="width:18%;"></td><td style="width:18%;"></td><td style="width:18%;"></td><td class="label-cell">成績組：</td><td style="width:16%;"></td></tr><tr><td class="label-cell" style="height:40px;">成績檢核：</td><td colspan="3"></td><td class="label-cell">承辦人：</td><td></td></tr></table></body></html>`;
+        const info = lastSummaryData.docInfo, rows = lastSummaryData.docData;
+        let tableRows = rows.map(r => `<tr><td style="border:1pt solid black; text-align:center;">${r[0]}</td><td style="border:1pt solid black; text-align:center;">${r[1]}</td><td style="border:1pt solid black; text-align:center;">${r[2]}</td><td style="border:1pt solid black; text-align:center;">${r[3]}</td><td style="border:1pt solid black; text-align:center;">${r[4]}</td><td style="border:1pt solid black; text-align:center;">${r[5]}</td></tr>`).join('');
+        
+        const content = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'>
+        <style>
+            @page { size: 21cm 29.7cm; margin: 1cm 1.5cm 1.5cm 1.5cm; }
+            body { font-family: "微軟正黑體", sans-serif; font-size: 11pt; }
+            h2 { text-align: center; font-size: 16pt; margin: 0 0 10px 0; }
+            .info-box { width: 100%; margin-bottom: 5px; font-size: 10.5pt; line-height: 1.4; }
+            .grade-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+            .grade-table th, .grade-table td { border: 1pt solid black; padding: 5px; text-align: center; }
+            .grade-table th { background-color: #f2f2f2; }
+            .sign-table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: fixed; }
+            .sign-table td { border: 1pt solid black; height: 75px; vertical-align: middle; text-align: center; padding: 2px; }
+            .lbl-cell { background-color: #f9f9f9; font-weight: bold; width: 60pt; font-size: 10pt; }
+            .content-cell { width: auto; }
+        </style>
+        </head>
+        <body>
+            <h2>語文競賽成績總表</h2>
+            <div class="info-box">
+                承辦學校：${info.school} <br>
+                組別：${info.group} &nbsp;&nbsp; 項目：${info.item} &nbsp;&nbsp; 錄取名額：${info.quota} 名
+            </div>
+            <table class="grade-table">
+                <thead><tr><th style="width:40pt;">競賽序</th><th>評審 1</th><th>評審 2</th><th>評審 3</th><th>總成績</th><th>名次</th></tr></thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+            <table class="sign-table">
+                <tr>
+                    <td class="lbl-cell">評審<br>簽名：</td>
+                    <td class="content-cell"></td><td class="content-cell"></td><td class="content-cell"></td>
+                    <td class="lbl-cell">成績組<br>簽名：</td>
+                    <td class="content-cell" style="width:80pt;"></td>
+                </tr>
+                <tr>
+                    <td class="lbl-cell" style="height:45px;">成績<br>檢核：</td>
+                    <td colspan="3"></td>
+                    <td class="lbl-cell">承辦人</td>
+                    <td></td>
+                </tr>
+            </table>
+        </body></html>`;
+        
         const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `${info.group}_${info.item}_成績總表.doc`;
         link.click();
     }
-
     window.onload = () => handleAction('getData');
 </script>
 </body>
