@@ -64,7 +64,7 @@
             <h5 class="m-0 fw-bold text-primary">成績登錄表(按Enter垂直輸入)</h5>
             <div class="gap-2">
                 <button class="btn btn-sm btn-outline-primary px-3" onclick="handleAction('getData')">刷新</button>
-                <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">全部儲存</button>
+                <button id="btn-saveall" class="btn btn-sm btn-success px-4" onclick="handleSaveAll()">成績計算</button>
             </div>
         </div>
         <div class="table-responsive">
@@ -147,7 +147,7 @@
         } else if (res.project === "演說") { 
             vHead.innerText = "-"; wHead.innerText = "時間"; 
         } else { 
-            vHead.innerText = "(禁止)"; wHead.innerText = "(禁止)"; 
+            vHead.innerText = "(/)"; wHead.innerText = "(/)"; 
             disablePenaltyCols = true; // 鎖定該欄位
         }
 
